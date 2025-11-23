@@ -65,7 +65,7 @@ def prioritize_tasks(task_list: List[Task]) -> List[Task]:
 
 def main():
     print("==========================================")
-    print("       Task Priority Calculator 2.0       ")
+    print("         Task Priority Calculator         ")
     print("==========================================")
     
     tasks = []
