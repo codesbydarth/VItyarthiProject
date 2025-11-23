@@ -11,7 +11,7 @@ A Python CLI tool to help you prioritize your tasks based on urgency, importance
 ## Usage
 1. Run the script:
    ```bash
-   python priority.py
+   python Task_Priority.py
    ```
 2. Enter the number of tasks.
 3. For each task, provide:
