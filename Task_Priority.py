@@ -1,106 +1,115 @@
 import datetime
-from dataclasses import dataclass
-from typing import List
 
-@dataclass
-class Task:
-    name: str
-    deadline: datetime.date
-    importance: int
-    effort: int
-    dependencies: int
-    score: float = 0.0
+class TodoItem:
+    def __init__(self, title, date_obj, level, mins, deps):
+        self.title = title
+        self.due_date = date_obj
+        self.level = level          # 1-5
+        self.minutes = mins
+        self.deps = deps
+        self.total_score = 0
 
-def get_valid_date(prompt: str) -> datetime.date:
-    """Prompts user for a date until a valid format is entered."""
+def ask_date(msg):
+    # Keep asking until we get a real date
     while True:
-        date_str = input(prompt).strip()
+        val = input(msg).strip()
         try:
-            day, month, year = map(int, date_str.split("-"))
-            return datetime.date(year, month, day)
-        except ValueError:
-            print("Invalid format. Please use DD-MM-YYYY (e.g., 15-08-1947).")
+            # user types DD/MM/YYYY
+            parts = val.split('/')
+            d = int(parts[0])
+            m = int(parts[1])
+            y = int(parts[2])
+            return datetime.date(y, m, d)
+        except:
+            print("Error: Please type date as DD/MM/YYYY")
 
-def get_valid_int(prompt: str, min_val: int, max_val: int) -> int:
-    """Prompts user for an integer within a specified range."""
+def ask_number(msg, bottom, top):
     while True:
         try:
-            val_input = input(prompt).strip()
-            val = int(val_input)
-            if min_val <= val <= max_val:
-                return val
-            print(f"Please enter a number between {min_val} and {max_val}.")
+            user_in = input(msg)
+            num = int(user_in)
+            if num >= bottom and num <= top:
+                return num
+            else:
+                print(f"Number must be between {bottom} and {top}")
         except ValueError:
-            print("Invalid input. Please enter an integer.")
+            print("That's not a number.")
 
-def compute_priority(task: Task) -> float:
-    """Computes a priority score between 0 and 1 based on task attributes."""
-    today = datetime.date.today()
-    days_left = (task.deadline - today).days
+def calculate_score(item):
+    # 1. Urgency (How close is the deadline?)
+    now = datetime.date.today()
+    diff = (item.due_date - now).days
     
-    # Clamp days_left: 
-    # If overdue (negative), treat as 0 days left (max urgency).
-    # If > 30 days, treat as 30 (min urgency for this factor).
-    effective_days = max(0, min(days_left, 30))
-    
-    urgency = 1 - (effective_days / 30)
-    importance_score = task.importance / 5
-    # Clamp effort to max 480 minutes for normalization
-    effort_score = 1 - (min(task.effort, 480) / 480)
-    # Clamp dependencies to max 5
-    dep_score = min(task.dependencies, 5) / 5
+    # If it's already passed, it's super urgent
+    if diff < 0:
+        diff = 0
+    # Cap it at 30 days out
+    if diff > 30:
+        diff = 30
+        
+    urgency_val = 1 - (diff / 30)
 
-    # Weighted sum
-    score = (0.4 * urgency +
-             0.3 * importance_score +
-             0.15 * effort_score +
-             0.1 * dep_score)
-    return score
+    # 2. Importance
+    imp_val = item.level / 5
 
-def prioritize_tasks(task_list: List[Task]) -> List[Task]:
-    """Calculates scores for all tasks and sorts them by priority."""
-    for task in task_list:
-        task.score = compute_priority(task)
-    return sorted(task_list, key=lambda x: x.score, reverse=True)
+    # 3. Effort (Less effort = higher priority to clear list)
+    # Cap at 8 hours (480 mins)
+    m = item.minutes
+    if m > 480:
+        m = 480
+    eff_val = 1 - (m / 480)
+
+    # 4. Dependencies
+    d = item.deps
+    if d > 5:
+        d = 5
+    dep_val = d / 5
+
+    # Combine them with weights
+    final = (urgency_val * 0.40) + (imp_val * 0.30) + (eff_val * 0.15) + (dep_val * 0.15)
+    return final
 
 def main():
-    print("==========================================")
-    print("         Task Priority Calculator         ")
-    print("==========================================")
+    print("--- Task Sorter ---")
     
-    tasks = []
+    my_tasks = []
+    
     while True:
         try:
-            num_tasks_input = input("Enter number of tasks: ").strip()
-            if not num_tasks_input: continue
-            n = int(num_tasks_input)
-            if n > 0: break
-            print("Please enter a number greater than 0.")
-        except ValueError:
-            print("Invalid input. Please enter a number.")
+            count_str = input("How many tasks do you have? ")
+            count = int(count_str)
+            if count > 0:
+                break
+        except:
+            print("Just enter a positive number.")
 
-    for i in range(n):
-        print(f"\n--- Task {i+1} ---")
-        name = input("Task name: ").strip()
-        if not name: name = f"Task {i+1}"
+    for i in range(count):
+        print(f"\nDetails for Task #{i+1}")
+        t_name = input("Name: ")
+        if t_name == "":
+            t_name = "Untitled"
+            
+        d_date = ask_date("Deadline (DD/MM/YYYY): ")
+        imp = ask_number("Importance (1-5): ", 1, 5)
+        eff = ask_number("Minutes needed (0-480): ", 0, 480)
+        dep = ask_number("Dependencies (0-5): ", 0, 5)
         
-        deadline = get_valid_date("Enter deadline (DD-MM-YYYY): ")
-        importance = get_valid_int("Importance (1-5): ", 1, 5)
-        effort = get_valid_int("Effort in minutes (0-480): ", 0, 480)
-        dependencies = get_valid_int("Dependencies count (0-5): ", 0, 5)
+        new_task = TodoItem(t_name, d_date, imp, eff, dep)
+        # Calc score immediately
+        new_task.total_score = calculate_score(new_task)
+        my_tasks.append(new_task)
 
-        task = Task(name, deadline, importance, effort, dependencies)
-        tasks.append(task)
+    # Sort the list based on score, highest first
+    my_tasks.sort(key=lambda x: x.total_score, reverse=True)
 
-    result = prioritize_tasks(tasks)
+    print("\n\nTODO LIST (Sorted)")
+    print("-" * 50)
+    print(f"{'#':<4} {'Task':<20} {'Date':<12} {'Score'}")
+    print("-" * 50)
 
-    print("\n\n===== PRIORITIZED TASK LIST =====")
-    # Header
-    print(f"{'Rank':<5} | {'Task Name':<20} | {'Deadline':<12} | {'Imp':<3} | {'Score':<6}")
-    print("-" * 60)
-    
-    for idx, t in enumerate(result, 1):
-        print(f"{idx:<5} | {t.name[:20]:<20} | {t.deadline.strftime('%d-%m-%Y'):<12} | {t.importance:<3} | {t.score:.3f}")
+    for idx, t in enumerate(my_tasks):
+        d_str = t.due_date.strftime("%d/%m/%Y")
+        print(f"{idx+1:<4} {t.title:<20} {d_str:<12} {t.total_score:.2f}")
 
 if __name__ == "__main__":
     main()
